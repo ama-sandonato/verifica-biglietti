@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- METATAG per iOS -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Scanner QR - AMA">
+  
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <link rel="manifest" href="./manifest.json">
+  <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <title>Scanner QR - AMA</title>
+  <script>
+        if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('AMA - Service Worker registrato!', reg))
+            .catch(err => console.error('Errore registrazione AMA - SW', err));
+        });
+        }
+  </script>
+<style>
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: radial-gradient(circle at top, #06061e, #16164e);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    
+    /* HEADER */
+    .header {
+      text-align: center;
+      padding: 16px;
+      font-size: 18px;
+      font-weight: 600;
+      background: rgba(255,255,255,0.05);
+      backdrop-filter: blur(10px);
+    }
+    
+    .sub {
+      font-size: 13px;
+      opacity: 0.7;
+    }
+    
+    /* SCANNER */
+    #reader {
+      width: 300px;
+      margin: auto;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 0 25px rgba(59,130,246,0.5);
+    }
+
+    #reader video {
+      width: 100% !important;
+      height: auto !important;
+      object-fit: cover; /* Mantiene il video centrato e senza bordi neri */
+    }
+    
+    /* RESULT FULLSCREEN */
+    #risultato {
+      position: fixed;
+      inset: 0;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 20px;
+      z-index: 10;
+      animation: fadeIn 0.2s ease;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    .ok { background: #16a34a; }
+    .warning { background: #f59e0b; }
+    .ko { background: #dc2626; }
+    
+    .result-box {
+      background: rgba(0,0,0,0.4);
+      padding: 20px;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 400px;
+    }
+    
+    .result-title {
+      font-size: 32px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    .result-subtitle {
+      font-size: 22px;
+      opacity: 0.9;
+    }
+
+    .result-sub {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+    
+    /* BOTTONI */
+    button {
+      padding: 12px 16px;
+      font-size: 14px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+    }
+    
+    .btn-fondo {
+      margin-top: auto; /* occupa tutto lo spazio rimanente sopra */
+      flex-shrink: 0;
+    }
+
+    .primary {
+      background: #3b82f6;
+      color: white;
+      width: 90%;
+      margin: 20px auto;
+    }
+    
+    .secondary {
+      background: rgba(255,255,255,0.2);
+      color: white;
+      margin: 6px;
+    }
+    
+    #loading {
+      display: none;
+      text-align: center;
+      margin-top: 10px;
+      opacity: 0.7;
+    }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+      🌙 Le Mille e Una Notte 2026 ✨
+      <div class="sub">Verifica Biglietti</div>
+    </div>
+    
+    <div id="loading">⏳ Verifica biglietto in corso...</div>
+    
+    <div id="reader"></div>
+    
+    <button class="primary btn-fondo" id="b-start-scan" onclick="avviaScanner()">Verifica Biglietto</button>
+    <button class="primary btn-fondo" id="b-stop-scan" onclick="fermaScanner()" style="display:none;">Chiudi</button>
+    
+    <div id="risultato"></div>
+    
+</body>
+
+
+
+  <script>
+    const APPS_SCRIPT_URL     = "https://script.google.com/macros/s/AKfycbywhbbHNVrJIKJSH0RJ5sllwp-khgMkKK0zhP9_pMNWHMi__P_3SoTxPCpl0lVJ99gW/exec";
+
+    let locked            = false;
+    let scanner           = null;
+
+    document.getElementById('b-stop-scan').style.display = 'none';
+
+    /**
+     * Funzione mockata per la scansione
+     */
+    function avviaScannerMock() {
+      locked = false;
+      chiudiRisultato();
+      onQRCodeScansionato('41dba9d1f6f83ebc1946d442b4cda4ea3ad0d5c03559fe2f7502bbb2c58b5f4a');
+    }
+
+    // =====================
+    // AVVIA SCANNER
+    // =====================
+    function avviaScanner() {
+      document.getElementById('risultato').style.display = 'none';
+      locked = false;
+      chiudiRisultato();
+
+      //scanner di QRCode tramite libreria
+      scanner = new Html5Qrcode("reader");
+
+      scanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 300 },
+        onQRCodeScansionato,
+        (errore) => { /* errori silenziosi durante la ricerca */ }
+      ).then(() => {
+        const video = document.querySelector("#reader video");
+        if (video) {
+          video.setAttribute("playsinline", "true");
+          video.setAttribute("webkit-playsinline", "true");
+          // Opzionale: assicura il muto per forzare l'autoplay se necessario
+          video.muted = true; 
+          video.play();
+        }
+        document.getElementById('b-start-scan').innerText = "📷 Fotocamera attiva...";
+        document.getElementById('b-start-scan').style.display = 'none';
+        document.getElementById('b-stop-scan').style.display = 'block';
+      }).catch((err) => {
+        document.getElementById('b-start-scan').style.display = 'block';
+        document.getElementById('b-stop-scan').style.display = 'none';
+        alert("Errore fotocamera: " + err);
+      });
+    }
+
+
+    // =====================
+    // CALLBACK — QR LETTO
+    // =====================
+    function onQRCodeScansionato(codiceDecodificato) {
+      // Evita doppia lettura
+      if (locked) return;
+      locked = true;
+
+      // 1. Ferma e chiudi la fotocamera
+      fermaScanner();
+
+      // 2. Mostra loading
+      document.getElementById('loading').style.display = 'block';
+
+      // 3. Chiama la verifica — cambia in base a come chiami la funzione:
+      fetch(APPS_SCRIPT_URL, {
+        method : "POST",
+        headers: { "Content-Type": "text/plain" },
+        body   : JSON.stringify({
+          action  : "verificaEAggiorna",
+          codiceQR: codiceDecodificato 
+        })
+      })
+      .then(res => res.json())
+      .then(mostraRisultato)
+      .catch(mostraErrore);
+    }
+
+
+    // =====================
+    // FERMA SCANNER
+    // =====================
+    function fermaScanner() {
+      if (scanner) {
+        scanner.stop().then(() => {
+          scanner.clear();
+          scanner = null;
+          document.getElementById('reader').innerHTML   = '';
+          document.getElementById('b-start-scan').disabled  = false;
+          document.getElementById('b-start-scan').innerText = "Verifica Biglietto";
+          document.getElementById('b-start-scan').style.display = 'block';
+          document.getElementById('b-stop-scan').style.display = 'none';
+          
+        }).catch(err => console.error("Errore stop scanner:", err));
+      }
+    }
+
+
+    function mostraRisultato(risposta) {
+      document.getElementById('loading').style.display = 'none';
+
+      const div = document.getElementById('risultato');
+      div.className = risposta.esito.toLowerCase();
+
+      let contenuto = `
+        <div class="result-box">
+          <div class="result-title">${risposta.icona} ${risposta.esito} ${risposta.icona}</div>
+          <div class="result-subtitle">${risposta.messaggio}</div>
+      `;
+
+      if (risposta.dati) {
+        contenuto += `
+          <div class="result-sub">
+            <table style="width:100%; font-size:14px; margin-top:10px; border-collapse:collapse;">
+              <tr><td style="padding:4px;">Nominativo</td><td style="padding:4px;"><strong>${risposta.dati.name}</strong></td></tr>
+              <tr><td style="padding:4px;">N. Ingressi</td><td style="padding:4px;"><strong>${Number(risposta.dati.adulti) + Number(risposta.dati.bambini)}</strong></td></tr>
+              <tr><td style="padding:4px;">N. Menu #1</td><td style="padding:4px;"><strong>${risposta.dati.menu1}</strong></td></tr>
+              <tr><td style="padding:4px;">N. Menu #2</td><td style="padding:4px;"><strong>${risposta.dati.menu2}</strong></td></tr>
+              <tr><td style="padding:4px;">Birre Extra</td><td style="padding:4px;"><strong>${risposta.dati.birreExtra}</strong></td></tr>
+              <tr><td style="padding:4px;">Token giochi</td><td style="padding:4px;"><strong>${risposta.dati.tokensGiochi}</strong></td></tr>
+            </table>
+          </div>
+        `;
+      }
+
+      contenuto += `
+          <div style="margin-top:20px;">
+            <button class="secondary" onclick="chiudiRisultato()">Chiudi</button>
+            <button class="secondary" onclick="avviaScanner()">Verifica Biglietto</button>
+          </div>
+        </div>
+      `;
+
+      div.innerHTML = contenuto;
+      div.style.display = 'flex';
+
+      setTimeout(() => locked = false, 1500);
+      navigator.vibrate?.(200);
+    }
+
+    // =====================
+    // MOSTRA ERRORE
+    // =====================
+    function mostraErrore(errore) {
+      document.getElementById('loading').style.display = 'none';
+      mostraRisultato({
+        esito    : "KO",
+        messaggio: "❌ Errore di comunicazione",
+        dati     : null
+      });
+      alert(errore);
+      console.error(errore);
+    }
+
+
+    // =====================
+    // CHIUDI RISULTATO
+    // =====================
+    function chiudiRisultato() {
+      document.getElementById('risultato').style.display = 'none';
+      // ultimoCodiceLetto = null;
+      locked = false;
+
+      //riattiva il pulsante "originale" di scansione
+      document.getElementById('b-start-scan').style.display = 'block';
+    }
+
+  </script>
+</html>
