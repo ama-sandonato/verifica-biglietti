@@ -4,10 +4,11 @@ const CACHE_NAME = 'pwa-camera-v1';
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      // Inserisci qui solo i file INDISPENSABILI (es. la tua index e il css principale)
       return cache.addAll([
         './index.html',
-        './scansiona-ticket.html'
+        './css/ama-pwa.css',
+        './js/config.js',
+        './js/pwa-scanner.js'
       ]);
     })
   );
