@@ -149,6 +149,7 @@ function avviaScanner() {
     }
     document.getElementById('b-start-scan').style.display = 'none';
     document.getElementById('b-stop-scan').style.display  = 'block';
+    document.querySelector('.reader-wrap').classList.add('scanning');
   }).catch(err => {
     document.getElementById('cam-placeholder').style.display = 'flex';
     document.getElementById('b-start-scan').style.display   = 'block';
@@ -166,6 +167,8 @@ function fermaScanner() {
     scanner.stop().then(() => {
       scanner.clear();
       scanner = null;
+
+      document.querySelector('.reader-wrap').classList.remove('scanning');
 
       // Ripristina placeholder
       const reader = document.getElementById('reader');

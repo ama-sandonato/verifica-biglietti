@@ -1,4 +1,6 @@
-const CACHE_NAME = 'pwa-camera-v1';
+// CACHE_VERSION viene sostituito automaticamente dal workflow GitHub Actions con lo short SHA del commit
+const CACHE_VERSION = '__CACHE_VERSION__';
+const CACHE_NAME = `pwa-camera-${CACHE_VERSION}`;
 
 // 1. Installazione: Creiamo la cache iniziale
 self.addEventListener('install', (event) => {
@@ -15,14 +17,14 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// 2. Attivazione: Pulizia vecchie cache
+// 2. Attivazione: Pulizia vecchie cache + presa di controllo immediata
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
+    caches.keys()
+      .then((keys) => Promise.all(
         keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
-      );
-    })
+      ))
+      .then(() => self.clients.claim())
   );
 });
 
