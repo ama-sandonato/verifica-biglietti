@@ -18,9 +18,29 @@
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js')
-          .then(reg => console.log('SW registrato', reg))
+          .then(reg => {
+            console.log('SW registrato', reg);
+            // Controlla aggiornamenti ogni volta che l'utente torna sulla pagina
+            document.addEventListener('visibilitychange', () => {
+              if (document.visibilityState === 'visible') reg.update();
+            });
+          })
           .catch(err => console.error('SW errore', err));
+
+        // Mostra il toast solo se c'era già un SW installato (esclude il primo install)
+        const hadController = !!navigator.serviceWorker.controller;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (hadController) showUpdateToast();
+        });
       });
+    }
+
+    function showUpdateToast() {
+      document.getElementById('update-toast').style.display = 'flex';
+    }
+
+    function applyUpdate() {
+      window.location.reload();
     }
   </script>
 </head>
@@ -64,11 +84,17 @@
   <div id="scanner-screen">
     <div class="scanner-label">📷 Punta la fotocamera sul QR Code</div>
 
-    <div id="reader">
-      <div class="cam-placeholder" id="cam-placeholder">
-        <div class="cam-placeholder-icon">📷</div>
-        <div class="cam-placeholder-text">Fotocamera non attiva</div>
+    <div class="reader-wrap">
+      <div id="reader">
+        <div class="cam-placeholder" id="cam-placeholder">
+          <div class="cam-placeholder-icon">📷</div>
+          <div class="cam-placeholder-text">Fotocamera non attiva</div>
+        </div>
       </div>
+      <div class="scan-corner tl"></div>
+      <div class="scan-corner tr"></div>
+      <div class="scan-corner bl"></div>
+      <div class="scan-corner br"></div>
     </div>
 
     <div id="loading">
@@ -86,6 +112,12 @@
 
   <!-- RISULTATO fullscreen -->
   <div id="risultato"></div>
+
+  <!-- Toast aggiornamento SW -->
+  <div id="update-toast" style="display:none; position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:#1e40af; color:#fff; padding:12px 18px; border-radius:10px; z-index:9999; align-items:center; gap:14px; box-shadow:0 4px 16px rgba(0,0,0,0.4); white-space:nowrap;">
+    <span>&#x1F504; Aggiornamento disponibile!</span>
+    <button onclick="applyUpdate()" style="background:#fff; color:#1e40af; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:14px;">Ricarica</button>
+  </div>
 
   <!-- Footer utente -->
   <div class="user-footer" id="user-footer">
