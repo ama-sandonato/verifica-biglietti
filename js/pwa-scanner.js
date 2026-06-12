@@ -1,20 +1,49 @@
 // =====================
 // SESSION
 // =====================
-const TOKEN_KEY = 'ama_pwa_token';
-const USER_KEY  = 'ama_pwa_user';
+const TOKEN_KEY    = 'ama_pwa_token';
+const USER_KEY     = 'ama_pwa_user';
+const PERMESSI_KEY = 'ama_pwa_permessi';
 
-function getToken() { return sessionStorage.getItem(TOKEN_KEY); }
-function getUser()  { return sessionStorage.getItem(USER_KEY); }
+const PERMESSO_VERIFICA = 'tab:verifica-biglietti';
 
-function saveSession(token, user) {
-  sessionStorage.setItem(TOKEN_KEY, token);
-  sessionStorage.setItem(USER_KEY, user);
+function getToken()    { return sessionStorage.getItem(TOKEN_KEY); }
+function getUser()     { return sessionStorage.getItem(USER_KEY); }
+function getPermessi() { return JSON.parse(sessionStorage.getItem(PERMESSI_KEY) || '[]'); }
+function hasPermesso(p) { return getPermessi().includes(p); }
+
+function saveSession(token, user, permessi) {
+  sessionStorage.setItem(TOKEN_KEY,    token);
+  sessionStorage.setItem(USER_KEY,     user);
+  sessionStorage.setItem(PERMESSI_KEY, JSON.stringify(permessi || []));
 }
 
 function clearSession() {
   sessionStorage.removeItem(TOKEN_KEY);
   sessionStorage.removeItem(USER_KEY);
+  sessionStorage.removeItem(PERMESSI_KEY);
+}
+
+// Aggiorna i permessi dal backend in background.
+// Chiamata al caricamento app e ad ogni ritorno in foreground.
+function refreshPermessi() {
+  if (!getToken()) return;
+  fetch(AppConfig.apiUrl, {
+    method : 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body   : JSON.stringify({ action: 'getPermessi', token: getToken() })
+  })
+  .then(res => res.json())
+  .then(res => {
+    if (res.esito === 'OK') {
+      sessionStorage.setItem(PERMESSI_KEY, JSON.stringify(res.permessi || []));
+      // Se il permesso di verifica è stato revocato, forza logout
+      if (!hasPermesso(PERMESSO_VERIFICA)) {
+        logout();
+      }
+    }
+  })
+  .catch(() => {}); // errori di rete ignorati silenziosamente
 }
 
 
@@ -26,8 +55,14 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('online',  updateStatusBadge);
   window.addEventListener('offline', updateStatusBadge);
 
+  // Refresh permessi quando la PWA torna in foreground (es. dopo lock schermo)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshPermessi();
+  });
+
   if (getToken()) {
     showScannerScreen();
+    refreshPermessi();
   } else {
     showLoginScreen();
   }
@@ -96,7 +131,12 @@ function doLogin() {
     btn.textContent = 'Accedi';
 
     if (res.esito === 'OK') {
-      saveSession(res.token, res.user);
+      if (!(res.permessi || []).includes(PERMESSO_VERIFICA)) {
+        errorDiv.textContent   = '❌ Utente non autorizzato per la verifica biglietti.';
+        errorDiv.style.display = 'block';
+        return;
+      }
+      saveSession(res.token, res.user, res.permessi);
       document.getElementById('login-password').value = '';
       showScannerScreen();
     } else {
