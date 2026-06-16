@@ -26,6 +26,10 @@ Per un aggiornamento immediato premi il pulsante **↻ Aggiorna**.
 - L'indicatore in alto mostra **● Online** / **● Offline**
 - In caso di connessione assente, l'esito della scansione non può essere verificato: **non autorizzare ingressi offline**
 
+## Ruoli
+- **Verificatore**: accede allo scanner QR e alla dashboard ingressi (questa guida)
+- **Cucina**: accede solo alla dashboard preparazioni Menu 1 / Menu 2 (guida separata)
+
 ## Problemi comuni
 - **Fotocamera non si avvia**: controlla che il browser abbia il permesso di accedere alla fotocamera
 - **QR Code non viene letto**: assicurati che il codice sia ben illuminato e non piegato

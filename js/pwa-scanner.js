@@ -7,6 +7,7 @@ const PERMESSI_KEY = 'ama_pwa_permessi';
 
 const PERMESSO_VERIFICA   = 'tab:verifica-biglietti';
 const PERMESSO_DASHBOARD  = 'tab:dashboard-verificator';
+const PERMESSO_CUCINA     = 'tab:dashboard-cucina';
 
 function getToken()    { return sessionStorage.getItem(TOKEN_KEY); }
 function getUser()     { return sessionStorage.getItem(USER_KEY); }
@@ -45,8 +46,8 @@ function refreshPermessi() {
     .then(res => {
       if (res.esito === 'OK') {
         sessionStorage.setItem(PERMESSI_KEY, JSON.stringify(res.permessi || []));
-        if (!hasPermesso(PERMESSO_VERIFICA)) logout();
-        // Aggiorna visibilità tab dashboard
+        if (!hasPermesso(PERMESSO_VERIFICA) && !hasPermesso(PERMESSO_CUCINA)) logout();
+        // Aggiorna visibilità tab dashboard (solo per verificator)
         const bnav = document.getElementById('bnav-dashboard');
         if (bnav) bnav.style.display = hasPermesso(PERMESSO_DASHBOARD) ? '' : 'none';
       }
@@ -66,6 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.visibilityState === 'visible') {
       refreshPermessi();
       if (_currentTab === 'dashboard') loadDashboardVerificator(true);
+      if (_currentTab === 'cucina')    loadDashboardCucina(true);
     }
   });
 
@@ -96,31 +98,36 @@ function showLoginScreen() {
   document.getElementById('login-screen').style.display    = 'flex';
   document.getElementById('tab-scanner').style.display     = 'none';
   document.getElementById('tab-dashboard').style.display   = 'none';
+  document.getElementById('tab-cucina').style.display      = 'none';
   document.getElementById('sticky-stats').style.display    = 'none';
   document.getElementById('bottom-nav').style.display      = 'none';
   document.getElementById('btn-logout').style.display      = 'none';
   document.getElementById('risultato').style.display       = 'none';
   stopStatsInterval();
+  stopCucinaInterval();
 }
 
 function showMainScreen() {
-  document.getElementById('login-screen').style.display    = 'none';
-  document.getElementById('sticky-stats').style.display    = 'flex';
-  document.getElementById('bottom-nav').style.display      = 'flex';
-  document.getElementById('btn-logout').style.display      = '';
-  document.getElementById('sstat-username').textContent    = getUser();
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('btn-logout').style.display   = '';
+  document.getElementById('sstat-username').textContent = getUser();
 
-  // Nasconde tab dashboard se non autorizzato
-  const bnavDash = document.getElementById('bnav-dashboard');
-  if (bnavDash) bnavDash.style.display = hasPermesso(PERMESSO_DASHBOARD) ? '' : 'none';
-
-  showTab(_currentTab || 'scanner');
-  startStatsInterval();
-
-  // Carica stats iniziali per la sticky
-  pwaFetch('getDashboardVerificator')
-    .then(updateStickyStats)
-    .catch(() => {});
+  if (hasPermesso(PERMESSO_CUCINA) && !hasPermesso(PERMESSO_VERIFICA)) {
+    // Utente cucina-only: niente scanner, niente sticky, niente bottom-nav
+    document.getElementById('sticky-stats').style.display = 'none';
+    document.getElementById('bottom-nav').style.display   = 'none';
+    showTab('cucina');
+    startCucinaInterval();
+  } else {
+    // Utente verificator (con o senza cucina)
+    document.getElementById('sticky-stats').style.display = 'flex';
+    document.getElementById('bottom-nav').style.display   = 'flex';
+    const bnavDash = document.getElementById('bnav-dashboard');
+    if (bnavDash) bnavDash.style.display = hasPermesso(PERMESSO_DASHBOARD) ? '' : 'none';
+    showTab(_currentTab || 'scanner');
+    startStatsInterval();
+    pwaFetch('getDashboardVerificator').then(updateStickyStats).catch(() => {});
+  }
 }
 
 
@@ -130,17 +137,21 @@ function showMainScreen() {
 let _currentTab = 'scanner';
 
 function showTab(tab) {
-  // Se dashboard non autorizzato, forza scanner
   if (tab === 'dashboard' && !hasPermesso(PERMESSO_DASHBOARD)) tab = 'scanner';
 
   _currentTab = tab;
 
   document.getElementById('tab-scanner').style.display   = tab === 'scanner'   ? 'flex'  : 'none';
   document.getElementById('tab-dashboard').style.display = tab === 'dashboard' ? 'block' : 'none';
-  document.getElementById('bnav-scanner').classList.toggle('active',   tab === 'scanner');
-  document.getElementById('bnav-dashboard').classList.toggle('active', tab === 'dashboard');
+  document.getElementById('tab-cucina').style.display    = tab === 'cucina'    ? 'flex'  : 'none';
+
+  const bnavScanner = document.getElementById('bnav-scanner');
+  const bnavDash    = document.getElementById('bnav-dashboard');
+  if (bnavScanner) bnavScanner.classList.toggle('active', tab === 'scanner');
+  if (bnavDash)    bnavDash.classList.toggle('active',    tab === 'dashboard');
 
   if (tab === 'dashboard') loadDashboardVerificator();
+  if (tab === 'cucina')    loadDashboardCucina();
   if (tab === 'scanner')   chiudiRisultato();
 }
 
@@ -273,8 +284,9 @@ function doLogin() {
     btn.textContent = 'Accedi';
 
     if (res.esito === 'OK') {
-      if (!(res.permessi || []).includes(PERMESSO_VERIFICA)) {
-        errorDiv.textContent   = '❌ Utente non autorizzato per la verifica biglietti.';
+      const permessi = res.permessi || [];
+      if (!permessi.includes(PERMESSO_VERIFICA) && !permessi.includes(PERMESSO_CUCINA)) {
+        errorDiv.textContent   = '❌ Utente non autorizzato.';
         errorDiv.style.display = 'block';
         return;
       }
@@ -299,9 +311,84 @@ function logout() {
   fermaScanner();
   clearSession();
   chiudiRisultato();
-  _dashboardLoaded = false;
-  _currentTab      = 'scanner';
+  _dashboardLoaded  = false;
+  _cucinaLoaded     = false;
+  _currentTab       = 'scanner';
   showLoginScreen();
+}
+
+
+// =====================
+// DASHBOARD CUCINA
+// =====================
+let _cucinaLoaded    = false;
+let _cucinaInterval  = null;
+
+function loadDashboardCucina(force) {
+  if (_cucinaLoaded && !force) return;
+  document.getElementById('cucina-content').innerHTML =
+    '<div class="vd-placeholder">⌛ Caricamento dati...</div>';
+
+  pwaFetch('getDashboardCucina')
+    .then(data => {
+      _cucinaLoaded = true;
+      renderDashboardCucina(data);
+    })
+    .catch(() => {
+      document.getElementById('cucina-content').innerHTML =
+        '<div class="vd-placeholder vd-error">❌ Errore caricamento. Riprova.</div>';
+    });
+}
+
+function renderDashboardCucina(data) {
+  const card = (icon, label, entrati, confermati) => {
+    const rimanenti = confermati - entrati;
+    const pct       = confermati > 0 ? Math.round(entrati / confermati * 100) : 0;
+    const bColor    = pct >= 90 ? 'var(--ok)' : pct >= 60 ? 'var(--warn)' : 'var(--ko)';
+    const rimClass  = rimanenti <= 0 ? 'ok' : rimanenti <= 3 ? 'warn' : '';
+    const rimTesto  = rimanenti > 0 ? `${rimanenti} ancora da servire` : '✓ Tutti serviti!';
+    return `
+      <div class="cu-card">
+        <div class="cu-header">${icon} ${label}</div>
+        <div class="cu-nums">
+          <div class="cu-num-block">
+            <div class="cu-big">${entrati}</div>
+            <div class="cu-sub">Serviti</div>
+          </div>
+          <div class="cu-sep">／</div>
+          <div class="cu-num-block">
+            <div class="cu-big cu-total">${confermati}</div>
+            <div class="cu-sub">Totali</div>
+          </div>
+        </div>
+        <div class="vd-progress-track">
+          <div class="vd-progress-bar" style="width:${pct}%; background:${bColor}"></div>
+        </div>
+        <div class="cu-rimanenti ${rimClass}">${rimTesto}</div>
+      </div>`;
+  };
+
+  document.getElementById('cucina-content').innerHTML = `
+    <div class="cu-toolbar">
+      <span class="cu-title">🍕 Stato preparazioni</span>
+      <button class="btn-vd-refresh" onclick="loadDashboardCucina(true)">↻ Aggiorna</button>
+    </div>
+    <div class="cu-cards">
+      ${card('🍕', 'Menu 1', data.menu1.entrati, data.menu1.confermati)}
+      ${card('🌭', 'Menu 2', data.menu2.entrati, data.menu2.confermati)}
+    </div>
+  `;
+}
+
+function startCucinaInterval() {
+  stopCucinaInterval();
+  _cucinaInterval = setInterval(() => {
+    loadDashboardCucina(true);
+  }, 5 * 60 * 1000);
+}
+
+function stopCucinaInterval() {
+  if (_cucinaInterval) { clearInterval(_cucinaInterval); _cucinaInterval = null; }
 }
 
 
@@ -496,7 +583,10 @@ let _guidaCaricata = false;
 function apriGuida() {
   document.getElementById('guida-modal').style.display = 'flex';
   if (!_guidaCaricata) {
-    fetch('./guide-verificator.md')
+    const file = hasPermesso(PERMESSO_CUCINA) && !hasPermesso(PERMESSO_VERIFICA)
+      ? './guide-cucina.md'
+      : './guide-verificator.md';
+    fetch(file)
       .then(r => r.text())
       .then(md => {
         document.getElementById('guida-body').innerHTML = marked.parse(md);
