@@ -5,7 +5,8 @@ const TOKEN_KEY    = 'ama_pwa_token';
 const USER_KEY     = 'ama_pwa_user';
 const PERMESSI_KEY = 'ama_pwa_permessi';
 
-const PERMESSO_VERIFICA = 'tab:verifica-biglietti';
+const PERMESSO_VERIFICA   = 'tab:verifica-biglietti';
+const PERMESSO_DASHBOARD  = 'tab:dashboard-verificator';
 
 function getToken()    { return sessionStorage.getItem(TOKEN_KEY); }
 function getUser()     { return sessionStorage.getItem(USER_KEY); }
@@ -24,28 +25,34 @@ function clearSession() {
   sessionStorage.removeItem(PERMESSI_KEY);
 }
 
-// Aggiorna i permessi dal backend in background.
-// Chiamata al caricamento app e ad ogni ritorno in foreground.
-function refreshPermessi() {
-  if (!getToken()) return;
-  fetch(AppConfig.apiUrl, {
+// =====================
+// API HELPER
+// =====================
+function pwaFetch(action, extra) {
+  return fetch(AppConfig.apiUrl, {
     method : 'POST',
     headers: { 'Content-Type': 'text/plain' },
-    body   : JSON.stringify({ action: 'getPermessi', token: getToken() })
-  })
-  .then(res => res.json())
-  .then(res => {
-    if (res.esito === 'OK') {
-      sessionStorage.setItem(PERMESSI_KEY, JSON.stringify(res.permessi || []));
-      // Se il permesso di verifica è stato revocato, forza logout
-      if (!hasPermesso(PERMESSO_VERIFICA)) {
-        logout();
-      }
-    }
-  })
-  .catch(() => {}); // errori di rete ignorati silenziosamente
+    body   : JSON.stringify({ action, token: getToken(), ...extra })
+  }).then(r => r.json());
 }
 
+// =====================
+// PERMESSI
+// =====================
+function refreshPermessi() {
+  if (!getToken()) return;
+  pwaFetch('getPermessi')
+    .then(res => {
+      if (res.esito === 'OK') {
+        sessionStorage.setItem(PERMESSI_KEY, JSON.stringify(res.permessi || []));
+        if (!hasPermesso(PERMESSO_VERIFICA)) logout();
+        // Aggiorna visibilità tab dashboard
+        const bnav = document.getElementById('bnav-dashboard');
+        if (bnav) bnav.style.display = hasPermesso(PERMESSO_DASHBOARD) ? '' : 'none';
+      }
+    })
+    .catch(() => {});
+}
 
 // =====================
 // INIT
@@ -55,13 +62,15 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('online',  updateStatusBadge);
   window.addEventListener('offline', updateStatusBadge);
 
-  // Refresh permessi quando la PWA torna in foreground (es. dopo lock schermo)
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') refreshPermessi();
+    if (document.visibilityState === 'visible') {
+      refreshPermessi();
+      if (_currentTab === 'dashboard') loadDashboardVerificator(true);
+    }
   });
 
   if (getToken()) {
-    showScannerScreen();
+    showMainScreen();
     refreshPermessi();
   } else {
     showLoginScreen();
@@ -84,17 +93,150 @@ function updateStatusBadge() {
 // SHOW / HIDE SCREENS
 // =====================
 function showLoginScreen() {
-  document.getElementById('login-screen').style.display   = 'flex';
-  document.getElementById('scanner-screen').style.display = 'none';
-  document.getElementById('user-footer').style.display    = 'none';
-  document.getElementById('risultato').style.display      = 'none';
+  document.getElementById('login-screen').style.display    = 'flex';
+  document.getElementById('tab-scanner').style.display     = 'none';
+  document.getElementById('tab-dashboard').style.display   = 'none';
+  document.getElementById('sticky-stats').style.display    = 'none';
+  document.getElementById('bottom-nav').style.display      = 'none';
+  document.getElementById('btn-logout').style.display      = 'none';
+  document.getElementById('risultato').style.display       = 'none';
+  stopStatsInterval();
 }
 
-function showScannerScreen() {
-  document.getElementById('login-screen').style.display   = 'none';
-  document.getElementById('scanner-screen').style.display = 'flex';
-  document.getElementById('user-footer').style.display    = 'flex';
-  document.getElementById('user-footer-name').textContent = getUser();
+function showMainScreen() {
+  document.getElementById('login-screen').style.display    = 'none';
+  document.getElementById('sticky-stats').style.display    = 'flex';
+  document.getElementById('bottom-nav').style.display      = 'flex';
+  document.getElementById('btn-logout').style.display      = '';
+  document.getElementById('sstat-username').textContent    = getUser();
+
+  // Nasconde tab dashboard se non autorizzato
+  const bnavDash = document.getElementById('bnav-dashboard');
+  if (bnavDash) bnavDash.style.display = hasPermesso(PERMESSO_DASHBOARD) ? '' : 'none';
+
+  showTab(_currentTab || 'scanner');
+  startStatsInterval();
+
+  // Carica stats iniziali per la sticky
+  pwaFetch('getDashboardVerificator')
+    .then(updateStickyStats)
+    .catch(() => {});
+}
+
+
+// =====================
+// TAB NAVIGATION
+// =====================
+let _currentTab = 'scanner';
+
+function showTab(tab) {
+  // Se dashboard non autorizzato, forza scanner
+  if (tab === 'dashboard' && !hasPermesso(PERMESSO_DASHBOARD)) tab = 'scanner';
+
+  _currentTab = tab;
+
+  document.getElementById('tab-scanner').style.display   = tab === 'scanner'   ? 'flex'  : 'none';
+  document.getElementById('tab-dashboard').style.display = tab === 'dashboard' ? 'block' : 'none';
+  document.getElementById('bnav-scanner').classList.toggle('active',   tab === 'scanner');
+  document.getElementById('bnav-dashboard').classList.toggle('active', tab === 'dashboard');
+
+  if (tab === 'dashboard') loadDashboardVerificator();
+  if (tab === 'scanner')   chiudiRisultato();
+}
+
+
+// =====================
+// STICKY STATS
+// =====================
+let _statsInterval = null;
+
+function updateStickyStats(stats) {
+  if (!stats || stats.esito !== 'OK') return;
+  const b = stats.biglietti;
+  const p = stats.persone;
+  document.getElementById('sstat-biglietti').textContent = `${b.entrati}/${b.confermati}`;
+  document.getElementById('sstat-persone').textContent   = `${p.entrate}/${p.confermate}`;
+}
+
+function startStatsInterval() {
+  stopStatsInterval();
+  _statsInterval = setInterval(() => {
+    pwaFetch('getDashboardVerificator')
+      .then(data => {
+        updateStickyStats(data);
+        if (_currentTab === 'dashboard') { _dashboardLoaded = false; loadDashboardVerificator(); }
+      })
+      .catch(() => {});
+  }, 5 * 60 * 1000);
+}
+
+function stopStatsInterval() {
+  if (_statsInterval) { clearInterval(_statsInterval); _statsInterval = null; }
+}
+
+
+// =====================
+// DASHBOARD VERIFICATOR
+// =====================
+let _dashboardLoaded = false;
+
+function loadDashboardVerificator(force) {
+  if (_dashboardLoaded && !force) return;
+  document.getElementById('dashboard-content').innerHTML =
+    '<div class="vd-placeholder">⌛ Caricamento dati...</div>';
+
+  pwaFetch('getDashboardVerificator')
+    .then(data => {
+      _dashboardLoaded = true;
+      updateStickyStats(data);
+      renderDashboardVerificator(data);
+    })
+    .catch(() => {
+      document.getElementById('dashboard-content').innerHTML =
+        '<div class="vd-placeholder vd-error">❌ Errore caricamento. Riprova.</div>';
+    });
+}
+
+function renderDashboardVerificator(data) {
+  const pct      = (a, b) => b > 0 ? Math.round(a / b * 100) : 0;
+  const barColor = p => p >= 90 ? 'var(--ok)' : p >= 60 ? 'var(--warn)' : 'var(--ko)';
+
+  const card = (icon, label, entrati, confermati) => {
+    const p        = pct(entrati, confermati);
+    const mancanti = confermati - entrati;
+    const bColor   = barColor(p);
+    return `
+      <div class="vd-card">
+        <div class="vd-card-top">
+          <span class="vd-icon">${icon}</span>
+          <span class="vd-label">${label}</span>
+          <span class="vd-pct" style="color:${bColor}">${p}%</span>
+        </div>
+        <div class="vd-progress-track">
+          <div class="vd-progress-bar" style="width:${p}%; background:${bColor}"></div>
+        </div>
+        <div class="vd-card-bottom">
+          <span class="vd-entrati">${entrati} entrati</span>
+          <span class="vd-mancanti ${mancanti > 0 ? 'warn' : 'ok'}">
+            ${mancanti > 0 ? mancanti + ' mancanti' : '✓ tutti entrati'}
+          </span>
+        </div>
+      </div>`;
+  };
+
+  document.getElementById('dashboard-content').innerHTML = `
+    <div class="vd-toolbar">
+      <span class="vd-title">📊 Ingressi in tempo reale</span>
+      <button class="btn-vd-refresh" onclick="loadDashboardVerificator(true)">↻ Aggiorna</button>
+    </div>
+    <div class="vd-cards">
+      ${card('🎫', 'Biglietti', data.biglietti.entrati,  data.biglietti.confermati)}
+      ${card('👥', 'Persone',   data.persone.entrate,    data.persone.confermate)}
+      ${card('🍕', 'Menu 1',    data.menu1.entrati,      data.menu1.confermati)}
+      ${card('🌭', 'Menu 2',    data.menu2.entrati,      data.menu2.confermati)}
+      ${card('🍺', 'Birre',     data.birre.entrate,      data.birre.confermate)}
+    </div>
+  `;
 }
 
 
@@ -138,7 +280,7 @@ function doLogin() {
       }
       saveSession(res.token, res.user, res.permessi);
       document.getElementById('login-password').value = '';
-      showScannerScreen();
+      showMainScreen();
     } else {
       errorDiv.textContent   = '❌ ' + (res.messaggio || 'Credenziali non valide.');
       errorDiv.style.display = 'block';
@@ -157,6 +299,8 @@ function logout() {
   fermaScanner();
   clearSession();
   chiudiRisultato();
+  _dashboardLoaded = false;
+  _currentTab      = 'scanner';
   showLoginScreen();
 }
 
@@ -210,7 +354,6 @@ function fermaScanner() {
 
       document.querySelector('.reader-wrap').classList.remove('scanning');
 
-      // Ripristina placeholder
       const reader = document.getElementById('reader');
       reader.innerHTML = '';
       const ph = document.createElement('div');
@@ -234,12 +377,9 @@ function onQRCodeScansionato(codiceDecodificato) {
   locked = true;
 
   fermaScanner();
-
   document.getElementById('loading').style.display = 'flex';
 
-  if (AppConfig.debugMode) {
-    console.log('[QR] Codice scansionato:', codiceDecodificato);
-  }
+  if (AppConfig.debugMode) console.log('[QR] Codice scansionato:', codiceDecodificato);
 
   fetch(AppConfig.apiUrl, {
     method : "POST",
@@ -254,12 +394,14 @@ function onQRCodeScansionato(codiceDecodificato) {
   .then(res => {
     document.getElementById('loading').style.display = 'none';
 
-    // Token scaduto o non valido → torna al login
     if (res.motivo === 'AUTH_EXPIRED' || res.motivo === 'AUTH_MISSING' || res.motivo === 'AUTH_INVALID') {
       clearSession();
       showLoginScreen();
       return;
     }
+
+    // Aggiorna sticky stats con i dati freschi allegati alla risposta
+    if (res.stats) updateStickyStats(res.stats);
 
     mostraRisultato(res);
   })
@@ -298,7 +440,6 @@ function mostraRisultato(risposta) {
       { icon: '🍕', label: 'Menù Pizza',    value: d.menu1 },
       { icon: '🌭', label: 'Menù Hot Dog',  value: d.menu2 },
       { icon: '🍺', label: 'Birre extra',   value: d.birreExtra },
-      // per ora non servono : { icon: '🎮', label: 'Token giochi',  value: d.tokensGiochi },
     ];
 
     datiHtml = rows.map(r => `
@@ -334,9 +475,7 @@ function mostraRisultato(risposta) {
   setTimeout(() => locked = false, 1500);
   navigator.vibrate?.(esito === 'OK' ? 100 : [100, 50, 100]);
 
-  if (AppConfig.debugMode) {
-    console.log('[Risultato]', risposta);
-  }
+  if (AppConfig.debugMode) console.log('[Risultato]', risposta);
 }
 
 
@@ -346,4 +485,29 @@ function mostraRisultato(risposta) {
 function chiudiRisultato() {
   document.getElementById('risultato').style.display = 'none';
   locked = false;
+}
+
+
+// =====================
+// GUIDA MODAL
+// =====================
+let _guidaCaricata = false;
+
+function apriGuida() {
+  document.getElementById('guida-modal').style.display = 'flex';
+  if (!_guidaCaricata) {
+    fetch('./guide-verificator.md')
+      .then(r => r.text())
+      .then(md => {
+        document.getElementById('guida-body').innerHTML = marked.parse(md);
+        _guidaCaricata = true;
+      })
+      .catch(() => {
+        document.getElementById('guida-body').innerHTML = '<p>Guida non disponibile.</p>';
+      });
+  }
+}
+
+function chiudiGuida() {
+  document.getElementById('guida-modal').style.display = 'none';
 }
