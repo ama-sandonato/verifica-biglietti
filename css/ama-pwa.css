@@ -762,6 +762,99 @@ body {
   color: var(--text-dim);
 }
 
+/* ── DASHBOARD CUCINA (PWA) ────────────────────────────── */
+#tab-cucina {
+  flex: 1;
+  display: none;
+  flex-direction: column;
+  padding: 0 0 24px;
+  overflow-y: auto;
+}
+
+.cu-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 8px;
+}
+
+.cu-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cu-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 12px 12px;
+}
+
+.cu-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  border-top: 3px solid var(--gold);
+  padding: 20px 20px 16px;
+}
+
+.cu-header {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 16px;
+}
+
+.cu-nums {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.cu-num-block { text-align: center; }
+
+.cu-big {
+  font-size: 64px;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--text);
+}
+
+.cu-big.cu-total { color: var(--text-dim); font-size: 48px; }
+
+.cu-sub {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+.cu-sep {
+  font-size: 40px;
+  color: var(--border);
+  font-weight: 300;
+  margin-bottom: 20px;
+}
+
+.cu-rimanenti {
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ko);
+  margin-top: 10px;
+}
+.cu-rimanenti.warn { color: var(--warn); }
+.cu-rimanenti.ok   { color: var(--ok); }
+
 /* ── ANIMAZIONI ────────────────────────────────────────── */
 @keyframes fadeIn {
   from { opacity: 0; }
