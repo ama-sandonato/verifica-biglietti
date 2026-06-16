@@ -122,8 +122,10 @@ function showMainScreen() {
     // Utente verificator (con o senza cucina)
     document.getElementById('sticky-stats').style.display = 'flex';
     document.getElementById('bottom-nav').style.display   = 'flex';
-    const bnavDash = document.getElementById('bnav-dashboard');
-    if (bnavDash) bnavDash.style.display = hasPermesso(PERMESSO_DASHBOARD) ? '' : 'none';
+    const bnavDash   = document.getElementById('bnav-dashboard');
+    const bnavCucina = document.getElementById('bnav-cucina');
+    if (bnavDash)   bnavDash.style.display   = hasPermesso(PERMESSO_DASHBOARD) ? '' : 'none';
+    if (bnavCucina) bnavCucina.style.display = hasPermesso(PERMESSO_CUCINA)    ? '' : 'none';
     showTab(_currentTab || 'scanner');
     startStatsInterval();
     pwaFetch('getDashboardVerificator').then(updateStickyStats).catch(() => {});
@@ -147,8 +149,10 @@ function showTab(tab) {
 
   const bnavScanner = document.getElementById('bnav-scanner');
   const bnavDash    = document.getElementById('bnav-dashboard');
+  const bnavCucina  = document.getElementById('bnav-cucina');
   if (bnavScanner) bnavScanner.classList.toggle('active', tab === 'scanner');
   if (bnavDash)    bnavDash.classList.toggle('active',    tab === 'dashboard');
+  if (bnavCucina)  bnavCucina.classList.toggle('active',  tab === 'cucina');
 
   if (tab === 'dashboard') loadDashboardVerificator();
   if (tab === 'cucina')    loadDashboardCucina();
