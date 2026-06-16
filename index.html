@@ -12,6 +12,7 @@
   <link rel="manifest" href="./manifest.json">
   <link rel="stylesheet" href="./css/ama-pwa.css">
   <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <title>Scanner QR - AMA</title>
 
   <script>
@@ -19,15 +20,12 @@
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js')
           .then(reg => {
-            console.log('SW registrato', reg);
-            // Controlla aggiornamenti ogni volta che l'utente torna sulla pagina
             document.addEventListener('visibilitychange', () => {
               if (document.visibilityState === 'visible') reg.update();
             });
           })
           .catch(err => console.error('SW errore', err));
 
-        // Mostra il toast solo se c'era già un SW installato (esclude il primo install)
         const hadController = !!navigator.serviceWorker.controller;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
           if (hadController) showUpdateToast();
@@ -38,7 +36,6 @@
     function showUpdateToast() {
       document.getElementById('update-toast').style.display = 'flex';
     }
-
     function applyUpdate() {
       window.location.reload();
     }
@@ -52,16 +49,35 @@
     <div class="spinner-label">Verifica in corso...</div>
   </div>
 
-  <!-- Header -->
-  <div class="header">
+  <!-- ── HEADER ─────────────────────────────────────────── -->
+  <div class="pwa-header">
     <div class="header-left">
       <div class="header-title">🌙 Le Mille e Una Notte 2026</div>
       <div class="header-sub">Verifica Biglietti</div>
     </div>
-    <div class="header-badge" id="status-badge">...</div>
+    <div class="header-actions">
+      <div class="header-badge" id="status-badge">...</div>
+      <button class="btn-hdr" id="btn-help" onclick="apriGuida()" title="Guida">?</button>
+      <button class="btn-hdr btn-hdr-logout" id="btn-logout" onclick="logout()" title="Esci" style="display:none">⏏</button>
+    </div>
   </div>
 
-  <!-- LOGIN -->
+  <!-- ── STICKY STATS ──────────────────────────────────── -->
+  <div class="sticky-stats" id="sticky-stats" style="display:none">
+    <div class="sstat-item">
+      <span class="sstat-icon">🎫</span>
+      <span class="sstat-val" id="sstat-biglietti">—/—</span>
+    </div>
+    <div class="sstat-div"></div>
+    <div class="sstat-item">
+      <span class="sstat-icon">👥</span>
+      <span class="sstat-val" id="sstat-persone">—/—</span>
+    </div>
+    <div class="sstat-spacer"></div>
+    <div class="sstat-user">👤 <span id="sstat-username"></span></div>
+  </div>
+
+  <!-- ── LOGIN ──────────────────────────────────────────── -->
   <div id="login-screen">
     <div class="login-icon">🔐</div>
     <div class="login-title">Area Riservata</div>
@@ -80,8 +96,8 @@
     </form>
   </div>
 
-  <!-- SCANNER -->
-  <div id="scanner-screen">
+  <!-- ── TAB: SCANNER ───────────────────────────────────── -->
+  <div id="tab-scanner" style="display:none">
     <div class="scanner-label">📷 Punta la fotocamera sul QR Code</div>
 
     <div class="reader-wrap">
@@ -110,19 +126,46 @@
     </button>
   </div>
 
-  <!-- RISULTATO fullscreen -->
+  <!-- ── TAB: DASHBOARD ─────────────────────────────────── -->
+  <div id="tab-dashboard" style="display:none">
+    <div id="dashboard-content">
+      <div class="vd-placeholder">Apri questo tab per caricare i dati.</div>
+    </div>
+  </div>
+
+  <!-- ── RISULTATO fullscreen ───────────────────────────── -->
   <div id="risultato"></div>
 
-  <!-- Toast aggiornamento SW -->
+  <!-- ── GUIDA MODAL ────────────────────────────────────── -->
+  <div id="guida-modal" style="display:none">
+    <div class="guida-backdrop" onclick="chiudiGuida()"></div>
+    <div class="guida-panel">
+      <div class="guida-header">
+        <span>📖 Guida all'uso</span>
+        <button class="guida-close" onclick="chiudiGuida()">✕</button>
+      </div>
+      <div class="guida-body" id="guida-body">
+        <div class="vd-placeholder">Caricamento guida...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── BOTTOM NAV ─────────────────────────────────────── -->
+  <nav class="bottom-nav" id="bottom-nav" style="display:none">
+    <button class="bnav-btn active" id="bnav-scanner" onclick="showTab('scanner')">
+      <span class="bnav-icon">📷</span>
+      <span class="bnav-label">Scansione</span>
+    </button>
+    <button class="bnav-btn" id="bnav-dashboard" onclick="showTab('dashboard')">
+      <span class="bnav-icon">📊</span>
+      <span class="bnav-label">Dati</span>
+    </button>
+  </nav>
+
+  <!-- ── Toast aggiornamento SW ────────────────────────── -->
   <div id="update-toast" style="display:none; position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:#1e40af; color:#fff; padding:12px 18px; border-radius:10px; z-index:9999; align-items:center; gap:14px; box-shadow:0 4px 16px rgba(0,0,0,0.4); white-space:nowrap;">
     <span>&#x1F504; Aggiornamento disponibile!</span>
     <button onclick="applyUpdate()" style="background:#fff; color:#1e40af; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:14px;">Ricarica</button>
-  </div>
-
-  <!-- Footer utente -->
-  <div class="user-footer" id="user-footer">
-    <div class="user-footer-name">👤 <strong id="user-footer-name"></strong></div>
-    <button class="btn-logout" onclick="logout()">Esci</button>
   </div>
 
   <script src="./js/config.js"></script>
