@@ -34,7 +34,21 @@ function pwaFetch(action, extra) {
     method : 'POST',
     headers: { 'Content-Type': 'text/plain' },
     body   : JSON.stringify({ action, token: getToken(), ...extra })
-  }).then(r => r.json());
+  })
+  .then(r => r.json())
+  .then(res => {
+    if (res.motivo === 'AUTH_EXPIRED' || res.motivo === 'AUTH_MISSING' || res.motivo === 'AUTH_INVALID') {
+      const eraScaduto = res.motivo === 'AUTH_EXPIRED';
+      logout();
+      if (eraScaduto) {
+        const errorDiv = document.getElementById('login-error');
+        errorDiv.textContent   = '⏰ Sessione scaduta. Effettua nuovamente il login.';
+        errorDiv.style.display = 'block';
+      }
+      return Promise.reject('auth');
+    }
+    return res;
+  });
 }
 
 // =====================
@@ -206,9 +220,11 @@ function loadDashboardVerificator(force) {
       updateStickyStats(data);
       renderDashboardVerificator(data);
     })
-    .catch(() => {
-      document.getElementById('dashboard-content').innerHTML =
-        '<div class="vd-placeholder vd-error">❌ Errore caricamento. Riprova.</div>';
+    .catch(err => {
+      if (err !== 'auth') {
+        document.getElementById('dashboard-content').innerHTML =
+          '<div class="vd-placeholder vd-error">❌ Errore caricamento. Riprova.</div>';
+      }
     });
 }
 
@@ -338,9 +354,11 @@ function loadDashboardCucina(force) {
       _cucinaLoaded = true;
       renderDashboardCucina(data);
     })
-    .catch(() => {
-      document.getElementById('cucina-content').innerHTML =
-        '<div class="vd-placeholder vd-error">❌ Errore caricamento. Riprova.</div>';
+    .catch(err => {
+      if (err !== 'auth') {
+        document.getElementById('cucina-content').innerHTML =
+          '<div class="vd-placeholder vd-error">❌ Errore caricamento. Riprova.</div>';
+      }
     });
 }
 
@@ -486,8 +504,13 @@ function onQRCodeScansionato(codiceDecodificato) {
     document.getElementById('loading').style.display = 'none';
 
     if (res.motivo === 'AUTH_EXPIRED' || res.motivo === 'AUTH_MISSING' || res.motivo === 'AUTH_INVALID') {
-      clearSession();
-      showLoginScreen();
+      const eraScaduto = res.motivo === 'AUTH_EXPIRED';
+      logout();
+      if (eraScaduto) {
+        const errorDiv = document.getElementById('login-error');
+        errorDiv.textContent   = '⏰ Sessione scaduta. Effettua nuovamente il login.';
+        errorDiv.style.display = 'block';
+      }
       return;
     }
 
