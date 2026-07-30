@@ -17,7 +17,7 @@ Per un aggiornamento immediato premi il pulsante **↻ Aggiorna**.
 
 ## Menu disponibili
 - **Menu 1** 🍕 — pizza + bibita
-- **Menu 2** 🌭 — panino + bibita
+- **Menu 2** 🥪 — focaccia + bibita
 
 Le birre vengono gestite separatamente al banco.
 
