@@ -264,7 +264,7 @@ function renderDashboardVerificator(data) {
       ${card('🎫', 'Biglietti', data.biglietti.entrati,  data.biglietti.confermati)}
       ${card('👥', 'Persone',   data.persone.entrate,    data.persone.confermate)}
       ${card('🍕', 'Menu 1',    data.menu1.entrati,      data.menu1.confermati)}
-      ${card('🌭', 'Menu 2',    data.menu2.entrati,      data.menu2.confermati)}
+      ${card('🥪', 'Menu 2',    data.menu2.entrati,      data.menu2.confermati)}
       ${card('🍺', 'Birre',     data.birre.entrate,      data.birre.confermate)}
     </div>
   `;
@@ -397,7 +397,7 @@ function renderDashboardCucina(data) {
     </div>
     <div class="cu-cards">
       ${card('🍕', 'Menu 1', data.menu1.entrati, data.menu1.confermati)}
-      ${card('🌭', 'Menu 2', data.menu2.entrati, data.menu2.confermati)}
+      ${card('🥪', 'Menu 2', data.menu2.entrati, data.menu2.confermati)}
     </div>
   `;
 }
@@ -552,7 +552,7 @@ function mostraRisultato(risposta) {
       { icon: '👤', label: 'Nominativo',   value: d.name },
       { icon: '👥', label: 'Ingressi',      value: ingressi },
       { icon: '🍕', label: 'Menù Pizza',    value: d.menu1 },
-      { icon: '🌭', label: 'Menù Hot Dog',  value: d.menu2 },
+      { icon: '🥪', label: 'Menù Focaccia',  value: d.menu2 },
       { icon: '🍺', label: 'Birre extra',   value: d.birreExtra },
     ];
 
