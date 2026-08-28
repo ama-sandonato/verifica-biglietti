@@ -684,6 +684,52 @@ body {
   color: var(--text);
 }
 
+/* ── TOKEN DA CONSEGNARE (gettoni fisici birra/pizza/focaccia) ── */
+.token-box {
+  margin: 12px 20px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+}
+
+.token-box-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.token-empty {
+  font-size: 13px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.token-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.token-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 20px;
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.token-chip .token-count { font-size: 17px; }
+
+.token-chip.token-birra     { background: #FFD400; color: #1a1000; }
+.token-chip.token-pizza     { background: #E53935; color: #fff; }
+.token-chip.token-focaccia  { background: var(--orange); color: #1a1000; }
+
 .result-actions {
   padding: 16px 20px;
   display: flex;
