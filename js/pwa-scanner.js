@@ -526,6 +526,38 @@ function onQRCodeScansionato(codiceDecodificato) {
 }
 
 
+/**
+ * Costruisce i "gettoni" fisici da consegnare in base a quanto acquistato: un gettone
+ * per unità (Giallo = birra, Rosso = pizza, Arancione = focaccia). Mostrato sia per
+ * esito OK che WARNING (es. biglietto già scansionato), perché l'operatore deve
+ * comunque sapere quanti gettoni dare anche in caso di ri-scansione.
+ */
+function _buildTokenHtml(d) {
+  const token = [
+    { count: Number(d.birreExtra || 0), colorClass: 'token-birra',    dot: '🟡', label: 'Birra' },
+    { count: Number(d.menu1 || 0),      colorClass: 'token-pizza',    dot: '🔴', label: 'Pizza' },
+    { count: Number(d.menu2 || 0),      colorClass: 'token-focaccia', dot: '🟠', label: 'Focaccia' },
+  ].filter(t => t.count > 0);
+
+  if (token.length === 0) {
+    return `<div class="token-box"><div class="token-empty">Nessun token da consegnare</div></div>`;
+  }
+
+  const chips = token.map(t => `
+    <div class="token-chip ${t.colorClass}">
+      <span class="token-count">${t.count}×</span> ${t.dot} ${t.label}
+    </div>
+  `).join('');
+
+  return `
+    <div class="token-box">
+      <div class="token-box-title">🎟️ Token da consegnare</div>
+      <div class="token-chips">${chips}</div>
+    </div>
+  `;
+}
+
+
 // =====================
 // MOSTRA RISULTATO
 // =====================
@@ -545,6 +577,7 @@ function mostraRisultato(risposta) {
   }
 
   let datiHtml = '';
+  let tokenHtml = '';
   if (risposta.dati) {
     const d = risposta.dati;
     const ingressi = Number(d.adulti || 0) + Number(d.bambini || 0);
@@ -565,6 +598,8 @@ function mostraRisultato(risposta) {
         <div class="dati-value">${r.value ?? '—'}</div>
       </div>
     `).join('');
+
+    tokenHtml = _buildTokenHtml(d);
   }
 
   const div = document.getElementById('risultato');
@@ -578,6 +613,7 @@ function mostraRisultato(risposta) {
       </div>
     </div>
     <div class="result-divider"></div>
+    ${tokenHtml}
     ${datiHtml ? `<div class="result-dati">${datiHtml}</div>` : '<div style="flex:1"></div>'}
     <div class="result-actions">
       <button class="btn-result chiudi" onclick="chiudiRisultato()">✕ Chiudi</button>
