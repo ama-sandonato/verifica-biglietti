@@ -368,14 +368,14 @@ function renderDashboardCucina(data) {
     const pct       = confermati > 0 ? Math.round(entrati / confermati * 100) : 0;
     const bColor    = pct >= 90 ? 'var(--ok)' : pct >= 60 ? 'var(--warn)' : 'var(--ko)';
     const rimClass  = rimanenti <= 0 ? 'ok' : rimanenti <= 3 ? 'warn' : '';
-    const rimTesto  = rimanenti > 0 ? `${rimanenti} ancora da servire` : '✓ Tutti serviti!';
+    const rimTesto  = rimanenti > 0 ? `${rimanenti} token ancora da consegnare` : '✓ Tutti i token consegnati!';
     return `
       <div class="cu-card">
         <div class="cu-header">${icon} ${label}</div>
         <div class="cu-nums">
           <div class="cu-num-block">
             <div class="cu-big">${entrati}</div>
-            <div class="cu-sub">Serviti</div>
+            <div class="cu-sub">Token Consegnati</div>
           </div>
           <div class="cu-sep">／</div>
           <div class="cu-num-block">
